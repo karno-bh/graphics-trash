@@ -1,4 +1,4 @@
-package org.sm2;
+package org.sm.simple_engine;
 
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;

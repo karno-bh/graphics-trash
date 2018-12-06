@@ -1,33 +1,60 @@
-package org.sm2;
+package org.sm.simple_engine;
+
+import javagames.util.FrameRate;
 
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferStrategy;
+import java.util.Objects;
 
-import javagames.util.FrameRate;
-import org.sm.simple_engine.Mouse;
+public class Engine {
 
-public class GameTemplate002 {
-
-	private static final long TIME_BETWEEN_UPDATES = 1000L / 100L;
+	private static final long TICK_HZ = 100;
 	private static final int MAX_ITER = 30;
 	private static final int WIDTH = 1920 / 2;
 	private static final int HEIGHT = (int)((double)WIDTH * 0.5625);
 	
+	private final Game game;
+	private final int width;
+	private final int height;
+	private final int maxIter;
+	private final long timeBetweenUpdates;
+	private final long sleepOnRenderMs;
+
+
+
 	private Mouse mouse = new Mouse();
-	private Object synch = new Object();
+
+	// use the same thread from where "public static void main" started
+	private final Object onStartSync = new Object();
 	
 	private BufferStrategy bs;
 	private Frame f;
+	private Canvas c;
 	private FrameRate frameRate;
-	
-	private double x = 10;
-	private double y = 10;
 
-	public static void main(String[] args) {
-		GameTemplate002 gt = new GameTemplate002();
-		gt.start();
+	public Engine(Game game) {
+		Objects.requireNonNull(game, "Game cannot be null");
+		this.game = game;
+
+		this.width = WIDTH;
+		this.height = HEIGHT;
+		this.maxIter = MAX_ITER;
+		this.timeBetweenUpdates = 1000 / TICK_HZ;
+		this.sleepOnRenderMs = 10;
+	}
+
+	public Mouse getMouse() {
+		return mouse;
+	}
+
+	public int getWidth() {
+		return width;
+	}
+
+	public int getHeight() {
+		return height;
 	}
 
 	public void start() {
@@ -40,9 +67,9 @@ public class GameTemplate002 {
 					System.exit(0);
 				}
 			});
-			Canvas c = new Canvas();
+			c = new Canvas();
+			f.setIgnoreRepaint(true);
 			c.setIgnoreRepaint(true);
-			// f.setIgnoreRepaint(true);
 			c.setSize(WIDTH, HEIGHT);
 			f.add(c);
 			f.setResizable(false);
@@ -68,18 +95,17 @@ public class GameTemplate002 {
 			bs = c.getBufferStrategy();
 			frameRate = new FrameRate();
 			frameRate.initialize();
-			c.addMouseListener(mouse);
-			synchronized (synch) {
-				synch.notifyAll();
+			c.addMouseListener(getMouse());
+			synchronized (onStartSync) {
+				onStartSync.notifyAll();
 			}
 		});
-		synchronized (synch) {
+		synchronized (onStartSync) {
 			try {
-				synch.wait();
-			} catch (InterruptedException e) {}
+				onStartSync.wait();
+			} catch (InterruptedException ignored) {}
 			gameLoop();
 		}
-		
 	}
 
 	public void gameLoop() {
@@ -87,29 +113,20 @@ public class GameTemplate002 {
 		while (true) {
 			long now = System.currentTimeMillis();
 			int iter = 0;
-			while (now - lastUpdateTime >= TIME_BETWEEN_UPDATES && iter < MAX_ITER) {
+			while (now - lastUpdateTime >= timeBetweenUpdates && iter < maxIter) {
 				//System.out.println(lastUpdateTime / 1000);
 				/*if (iter > 0) {
 					System.out.println("Iter: " + iter);
 				}*/
-				tick();
-				lastUpdateTime += TIME_BETWEEN_UPDATES;
+				game.tick(this);
+				lastUpdateTime += timeBetweenUpdates;
 				iter++;
 			}
 			draw();
 			// Thread.yield();
 			try {
-				Thread.sleep(5);
+				Thread.sleep(sleepOnRenderMs);
 			} catch (InterruptedException ignore) {}
-		}
-	}
-	
-	public void tick() {
-		x+=1D/5;
-		y+=1D/5;
-		if (x > 400) {
-			x = 10;
-			y = 10;
 		}
 	}
 	
@@ -119,8 +136,10 @@ public class GameTemplate002 {
 				Graphics g = null;
 				try {
 					g = bs.getDrawGraphics();
+					frameRate.calculate();
 					//System.out.println(g);
-					render(g);
+					game.render(this, g);
+					postRender(g);
 				} finally {
 					if (g != null) {
 						g.dispose();
@@ -130,15 +149,10 @@ public class GameTemplate002 {
 			bs.show();
 		} while (bs.contentsLost());
 	}
-	
-	public void render(Graphics g) {
-		g.setColor(Color.black);
-		g.fillRect(0, 0, WIDTH, HEIGHT);
-		frameRate.calculate();
+
+
+	protected void postRender(Graphics g) {
 		g.setColor(Color.GREEN);
-		g.drawString("frame:"  + frameRate.getFrameRate(), 100, 100);
-		g.drawString("Mouse: " + mouse.getPressed(), 50, 50);
-		g.setColor(Color.BLUE);
-		g.fillRect((int)x, (int)y, 50, 50);
+		g.drawString(frameRate.getFrameRate(), 0, 10);
 	}
 }

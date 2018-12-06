@@ -12,6 +12,7 @@ import java.awt.geom.AffineTransform;
 import java.awt.image.BufferStrategy;
 
 import javagames.util.FrameRate;
+import org.sm.simple_engine.Mouse;
 
 public class GameTemplate001 {
 
